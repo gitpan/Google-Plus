@@ -33,7 +33,7 @@ my %WriteMakefileArgs = (
     "Mojo::JSON" => 0,
     "Mojo::UserAgent" => 0
   },
-  "VERSION" => "0.001",
+  "VERSION" => "0.002",
   "test" => {
     "TESTS" => "t/*.t"
   }
