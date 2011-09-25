@@ -1,15 +1,13 @@
 Changes
 LICENSE
 MANIFEST
+META.json
 META.yml
 Makefile.PL
 README
 dist.ini
 lib/Google/Plus.pm
-lib/Google/Plus/Person.pm
 t/00-load.t
 t/01-plus.t
-t/02-person.t
-t/author-critic.t
 t/release-pod-coverage.t
 t/release-pod-syntax.t

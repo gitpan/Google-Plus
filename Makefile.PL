@@ -12,12 +12,9 @@ my %WriteMakefileArgs = (
   "ABSTRACT" => "simple interface to Google+",
   "AUTHOR" => "Zak B. Elep <zakame\@cpan.org>",
   "BUILD_REQUIRES" => {
-    "English" => 0,
     "Net::Ping" => 0,
     "Test::More" => 0,
-    "Test::Most" => 0,
-    "strict" => 0,
-    "warnings" => 0
+    "Test::Most" => 0
   },
   "CONFIGURE_REQUIRES" => {
     "ExtUtils::MakeMaker" => "6.30"
@@ -30,10 +27,9 @@ my %WriteMakefileArgs = (
     "Carp" => 0,
     "IO::Socket::SSL" => "1.37",
     "Mojo::Base" => 0,
-    "Mojo::JSON" => 0,
     "Mojo::UserAgent" => 0
   },
-  "VERSION" => "0.002",
+  "VERSION" => "0.003",
   "test" => {
     "TESTS" => "t/*.t"
   }
