@@ -1,14 +1,63 @@
 package Google::Plus;
 {
-  $Google::Plus::VERSION = '0.003';
+  $Google::Plus::VERSION = '0.004';
 }
 use Mojo::Base -base;
+use v5.10.1;
 
+use Mojo::URL;
 use Mojo::UserAgent;
 use IO::Socket::SSL 1.37;
 use Carp;
 
 has [qw/key ua/];
+
+our $service = 'https://www.googleapis.com/plus/v1';
+
+our %API = (
+  person     => '/people/ID',
+  activities => '/people/ID/activities/COLLECTION',
+  activity   => '/activities/ID'
+);
+
+# transform our api dispatch above into an HTTPS request
+# returns JSON decoded result or throws exception otherwise
+sub _request {
+  my ($self, $api, $id, $args) = @_;
+
+  my $key = $self->key;
+  my $ua  = $self->ua;
+
+  $api =~ s/ID/$id/;
+
+  my $url = Mojo::URL->new(join '', $service => $api);
+
+  # $args is a hashref corresponding to optional query parameters (such
+  # as nextPageToken)
+  if (ref $args eq 'HASH') {
+  PARAM: while (my ($k, $v) = each %$args) {
+      $k eq 'collection' and do {
+        my $p = $url->path->to_string;
+        $p =~ s/COLLECTION/$v/;
+        $url = $url->path($p);
+        next PARAM;
+      };
+      $url = $url->query({$k => $v});
+    }
+  }
+  $url = $url->query({key => $key});
+
+  my $tx = $ua->get($url);
+  $tx->success and return $tx->res->json;
+
+  # we never get here, unless something went wrong
+  my $message = $tx->error;
+  $tx->res->json and do {
+    my $json_err = $tx->res->json->{error}->{message};
+    $message = join ' ', $message => $json_err;
+  };
+  die "Error: $message";
+}
 
 sub new {
   my $self = bless {}, shift;
@@ -16,66 +65,46 @@ sub new {
   croak "API key required" unless $_[0] and $_[0] eq 'key';
 
   $self->key($_[1]);
-  $self->ua(Mojo::UserAgent->new);
+  $self->ua(Mojo::UserAgent->new->detect_proxy);
 
-  return $self;
+  $self;
 }
 
 sub person {
-  my ($self, $user_id) = @_;
+  my ($self, $user_id, $fields) = @_;
 
   croak 'user ID required' unless $user_id;
   croak 'Invalid user ID' unless $user_id =~ /[0-9]+/;
 
-  my $key = $self->key;
-  my $ua  = $self->ua;
-
-  my $json = $ua->get(
-    "https://www.googleapis.com/plus/v1/people/$user_id?key=$key"
-  )->res->json;
-
-  croak $json->{error}->{message} unless $json->{kind};
-
-  return $json;
+  $fields
+    ? $self->_request($API{person} => $user_id, {fields => $fields})
+    : $self->_request($API{person} => $user_id);
 }
 
 sub activities {
-  my ($self, $user_id, $next_token) = @_;
+  my ($self, $user_id, $collection, $next, $fields) = @_;
 
   croak 'user ID required' unless $user_id;
   croak 'Invalid user ID' unless $user_id =~ /[0-9]+/;
 
-  my $key = $self->key;
-  my $ua  = $self->ua;
-  my $url =
-    "https://www.googleapis.com/plus/v1/people/$user_id/activities/public?";
+  $collection //= 'public';
 
-  $url = join '', $url => "pageToken=$next_token&" if $next_token;
-  $url = join '', $url => "key=$key";
+  my %args = (collection => $collection);
+  $args{pageToken} = $next   if $next;
+  $args{fields}    = $fields if $fields;
 
-  my $json = $ua->get($url)->res->json;
-
-  croak $json->{error}->{message} unless $json->{kind};
-
-  return $json;
+  $self->_request($API{activities} => $user_id, \%args);
 }
 
 sub activity {
-  my ($self, $activity_id) = @_;
+  my ($self, $activity_id, $fields) = @_;
 
   croak 'activity ID required' unless $activity_id;
   croak 'Invalid activity ID' unless $activity_id =~ /\w+/;
 
-  my $key = $self->key;
-  my $ua  = $self->ua;
-  my $url =
-    "https://www.googleapis.com/plus/v1/activities/$activity_id?key=$key";
-
-  my $json = $ua->get($url)->res->json;
-
-  croak $json->{error}->{message} unless $json->{kind};
-
-  return $json;
+  $fields
+    ? $self->_request($API{activity} => $activity_id, {fields => $fields})
+    : $self->_request($API{activity} => $activity_id);
 }
 
 "Inspired by tempire's Google::Voice :3";
@@ -137,7 +166,9 @@ Google+ API key, used for retrieving content.  Usually set using L</new>.
   my $ua = $plus->ua(Mojo::UserAgent->new);
 
 User agent object that retrieves JSON from the Google+ API endpoint.
-Defaults to a L<Mojo::UserAgent> object.
+Defaults to a L<Mojo::UserAgent> object.  This object will use
+HTTP/HTTPS proxies when available (via C<HTTP_PROXY> and C<HTTPS_PROXY>
+environment variables.)
 
 =head1 METHODS
 
@@ -153,29 +184,39 @@ which you can get at L<https://code.google.com/apis/console>.
 =head2 C<person>
 
   my $person = $plus->person('userId');
+  my $person = $plus->person('userId', 'fields');
 
 Get a Google+ person's public profile.  Returns a L<Mojo::JSON> decoded
 hashref describing the person's profile in L<Portable
-Contacts|http://portablecontacts.net/draft-spec.html> format.
+Contacts|http://portablecontacts.net/draft-spec.html> format.  If
+C<fields> is given, limit response to the specified fields; see the
+Partial Responses section of L<https://developers.google.com/+/api>.
 
 =head2 C<activities>
 
   my $acts = $plus->activities('userId');
-  my $acts = $plus->activities('userId', 'nextPageToken');
+  my $acts = $plus->activities('userId', 'collection');
+  my $acts = $plus->activities('userId', 'collection', nextPage');
+  my $acts = $plus->activities('userId', 'collection', nextPage', 'fields');
 
-Get person's list of public activities.  Returns a L<Mojo::JSON> decoded
-hashref describing the person's activities in L<Activity
-Streams|http://activitystrea.ms/specs/json/1.0> format.  If
-C<nextPageToken> is given, this method retrieves the next page of
+Get person's list of public activities, returning a L<Mojo::JSON>
+decoded hashref describing the person's activities in L<Activity
+Streams|http://activitystrea.ms/specs/json/1.0> format; this method also
+accepts requesting partial responses if C<fields> is given.  If
+C<collection> is given, use that as the collection of activities to
+list; the default is to list C<public> activities instead.  If a
+C<nextPage> token is given, this method retrieves the next page of
 activities this person has.
 
 =head2 C<activity>
 
   my $post = $plus->activity('activityId')
+  my $post = $plus->activity('activityId', fields');
 
 Get a specific activity/post.  Returns a L<Mojo::JSON> decoded hashref
 describing the activity in L<Activity
-Streams|http://activitystrea.ms/specs/json/1.0> format.
+Streams|http://activitystrea.ms/specs/json/1.0> format.  If C<fields> is
+given, limit response to specified fields.
 
 =head1 SEE ALSO
 
@@ -185,9 +226,9 @@ Streams|http://activitystrea.ms/specs/json/1.0> format.
 
 =item * L<Google+|https://plus.google.com>
 
-=item * L<Portable Contacts Spec|http://portablecontacts.net>
+=item * L<Portable Contacts|http://portablecontacts.net>
 
-=item * L<Activity Streams Spec|http://activitystrea.ms>
+=item * L<Activity Streams|http://activitystrea.ms>
 
 =back
 
@@ -196,7 +237,8 @@ Streams|http://activitystrea.ms/specs/json/1.0> format.
 =head1 DEVELOPMENT
 
 This project is hosted on Github, at
-L<https://github.com/zakame/perl-google-plus>.
+L<https://github.com/zakame/perl-google-plus>.  Post issues to L<CPAN
+RT|https://rt.cpan.org/Public/Dist/Display.html?Name=Google-Plus>.
 
 =head1 AUTHOR
 

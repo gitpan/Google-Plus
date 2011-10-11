@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-
+use 5.010001;
 
 use ExtUtils::MakeMaker 6.30;
 
@@ -27,9 +27,10 @@ my %WriteMakefileArgs = (
     "Carp" => 0,
     "IO::Socket::SSL" => "1.37",
     "Mojo::Base" => 0,
+    "Mojo::URL" => 0,
     "Mojo::UserAgent" => 0
   },
-  "VERSION" => "0.003",
+  "VERSION" => "0.004",
   "test" => {
     "TESTS" => "t/*.t"
   }

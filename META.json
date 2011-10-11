@@ -24,7 +24,9 @@
             "Carp" : 0,
             "IO::Socket::SSL" : "1.37",
             "Mojo::Base" : 0,
-            "Mojo::UserAgent" : 0
+            "Mojo::URL" : 0,
+            "Mojo::UserAgent" : 0,
+            "perl" : "v5.10.1"
          }
       },
       "test" : {
@@ -40,9 +42,9 @@
       "repository" : {
          "type" : "git",
          "url" : "git://github.com/zakame/perl-google-plus.git",
-         "web" : "https://github.com/zakame/perl-google-plus.git"
+         "web" : "https://github.com/zakame/perl-google-plus"
       }
    },
-   "version" : "0.003"
+   "version" : "0.004"
 }
 
